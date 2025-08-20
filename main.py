@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
-import requests
+from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 from typing import Optional, Dict
 
@@ -46,28 +46,13 @@ def get_vehicle_details(rc_number: str) -> Dict:
     rc = rc_number.strip().upper()
     url = f"https://vahanx.in/rc-search/{rc}"
 
-    headers = {
-        "Host": "vahanx.in",
-        "Connection": "keep-alive",
-        "sec-ch-ua": "\"Chromium\";v=\"130\", \"Google Chrome\";v=\"130\", \"Not?A_Brand\";v=\"99\"",
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": "\"Android\"",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Referer": "https://vahanx.in/rc-search",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-
     try:
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-    except requests.exceptions.RequestException as e:
-        return {"ok": False, "rc": rc, "error": f"Network error: {e}"}
+        session = HTMLSession()
+        response = session.get(url)
+        response.html.render(timeout=20)   # render JavaScript
+        soup = BeautifulSoup(response.html.html, "html.parser")
     except Exception as e:
-        return {"ok": False, "rc": rc, "error": str(e)}
+        return {"ok": False, "rc": rc, "error": f"Network/Render error: {e}"}
 
     def get_value(label):
         """Extracts <p> text next to a <span> containing `label`"""
@@ -102,7 +87,7 @@ def get_vehicle_details(rc_number: str) -> Dict:
         "address": get_value("Address"),
         "city": get_value("City Name"),
         "phone": get_value("Phone"),
-        "note": "✅ API running from Render"
+        "note": "✅ API running from Termux with JS rendering"
     }
 
     # If nothing found → mark as failure
